@@ -40,7 +40,7 @@ Follow these steps to get the Quiz Generator running on your local machine.
 Clone this repository to your local machine using the following command:
 
 ```bash
-git clone https://github.com/your-username/quiz-generator.git
+git clone https://github.com/Srprajapat/Quiz-Generator
 cd quiz-generator
 ```
 
