@@ -104,6 +104,21 @@ def fetch_questions(uploaded_file_uri, num_questions, difficulty):
 # --- Streamlit UI (This part remains the same as the previous correct answer) ---
 st.title("📄 Quiz Generator from a Document")
 st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">', unsafe_allow_html=True)
+st.markdown("""
+<style>
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: white;
+    padding: 10px;
+    text-align: center;
+    z-index: 1000;
+    border-top: 1px solid #e0e0e0;
+}
+</style>
+""", unsafe_allow_html=True)
 st.write("Upload a document (PDF, DOCX, TXT) and I'll generate a quiz for you.")
 
 # Initialize session state variables
@@ -173,7 +188,7 @@ if st.session_state.questions:
 # Footer
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center;">
+<div class="footer">
     <p><strong>Made by srprajapat with ❤️</strong></p>
     <p>© 2025 srprajapat. All rights reserved.</p>
     <div>
