@@ -167,3 +167,27 @@ if st.session_state.questions:
         if st.button("Create Another Quiz"):
             st.session_state.questions = None
             st.rerun()
+
+# Footer
+st.markdown("---")
+st.markdown("**Made by srprajapat with ❤️**")
+st.markdown("© 2025 srprajapat. All rights reserved.")
+st.markdown("""
+<div style="text-align: center;">
+    <a href="https://github.com/Srprajapat/Quiz-Generator" target="_blank" style="margin: 0 10px;">
+        <img src="https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white" alt="GitHub" height="30">
+    </a>
+    <a href="https://twitter.com/s_r_prajapat" target="_blank" style="margin: 0 10px;">
+        <img src="https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white" alt="Twitter" height="30">
+    </a>
+    <a href="https://www.linkedin.com/in/seetaram-prajapat/" target="_blank" style="margin: 0 10px;">
+        <img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn" height="30">
+    </a>
+    <a href="https://instagram.com/s_r_prajapat" target="_blank" style="margin: 0 10px;">
+        <img src="https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white" alt="Instagram" height="30">
+    </a>
+    <a href="https://srprajapat.onrender.com" target="_blank" style="margin: 0 10px;">
+        <img src="https://img.shields.io/badge/Portfolio-FF5722?style=for-the-badge&logo=todoist&logoColor=white" alt="Portfolio" height="30">
+    </a>
+</div>
+""", unsafe_allow_html=True)
