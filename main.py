@@ -8,7 +8,7 @@ import time
 
 # Load environment variables and initialize client
 load_dotenv()
-google_api_key = st.secrets["GOOGLE_API_KEY"]
+google_api_key =  st.secrets["GOOGLE_API_KEY"]
 
 # --- FIX 1: Reverted API Initialization to your original working method ---
 try:
@@ -104,20 +104,6 @@ def fetch_questions(uploaded_file_uri, num_questions, difficulty):
 # --- Streamlit UI (This part remains the same as the previous correct answer) ---
 st.title("📄 Quiz Generator from a Document")
 st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">', unsafe_allow_html=True)
-st.markdown("""
-<style>
-.footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    padding: 10px;
-    text-align: center;
-    z-index: 1000;
-    border-top: 1px solid #e0e0e0;
-}
-</style>
-""", unsafe_allow_html=True)
 st.write("Upload a document (PDF, DOCX, TXT) and I'll generate a quiz for you.")
 
 # Initialize session state variables
@@ -184,10 +170,18 @@ if st.session_state.questions:
 
             st.rerun()
 
+        if st.button("Create Another Quiz"):
+            st.session_state.questions = None
+
+            st.rerun()
+
+# Spacer to push footer down
+st.markdown('<div style="height: 300px;"></div>', unsafe_allow_html=True)
+
 # Footer
 st.markdown("---")
 st.markdown("""
-<div class="footer">
+<div style="text-align: center;">
     <p><strong>Made by srprajapat with ❤️</strong></p>
     <p>© 2025 srprajapat. All rights reserved.</p>
     <div>
