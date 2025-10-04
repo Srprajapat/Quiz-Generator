@@ -8,7 +8,7 @@ import time
 
 # Load environment variables and initialize client
 load_dotenv()
-google_api_key = os.getenv("GOOGLE_API_KEY")
+google_api_key = st.secrets["GOOGLE_API_KEY"]
 
 # --- FIX 1: Reverted API Initialization to your original working method ---
 try:
@@ -73,7 +73,7 @@ def fetch_questions(uploaded_file_uri, num_questions, difficulty):
     try:
         # --- FIX 3: Reverted Content Generation to your original working method ---
         response = client.models.generate_content(
-            model="gemini-1.5-flash",  # Switched to 1.5-flash for speed and context
+            model="gemini-2.0-flash",  
             contents=content_parts
         )
         if response.text:
@@ -166,6 +166,7 @@ if st.session_state.questions:
         st.balloons()
         if st.button("Create Another Quiz"):
             st.session_state.questions = None
+
             st.rerun()
 
 # Footer
