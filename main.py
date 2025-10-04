@@ -111,7 +111,6 @@ st.markdown("""
     bottom: 0;
     left: 0;
     width: 100%;
-    background-color: white;
     padding: 10px;
     text-align: center;
     z-index: 1000;
