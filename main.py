@@ -103,6 +103,7 @@ def fetch_questions(uploaded_file_uri, num_questions, difficulty):
 
 # --- Streamlit UI (This part remains the same as the previous correct answer) ---
 st.title("📄 Quiz Generator from a Document")
+st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">', unsafe_allow_html=True)
 st.write("Upload a document (PDF, DOCX, TXT) and I'll generate a quiz for you.")
 
 # Initialize session state variables
@@ -171,24 +172,26 @@ if st.session_state.questions:
 
 # Footer
 st.markdown("---")
-st.markdown("**Made by srprajapat with ❤️**")
-st.markdown("© 2025 srprajapat. All rights reserved.")
 st.markdown("""
 <div style="text-align: center;">
-    <a href="https://github.com/Srprajapat/Quiz-Generator" target="_blank" style="margin: 0 10px;">
-        <img src="https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white" alt="GitHub" height="30">
-    </a>
-    <a href="https://twitter.com/s_r_prajapat" target="_blank" style="margin: 0 10px;">
-        <img src="https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white" alt="Twitter" height="30">
-    </a>
-    <a href="https://www.linkedin.com/in/seetaram-prajapat/" target="_blank" style="margin: 0 10px;">
-        <img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn" height="30">
-    </a>
-    <a href="https://instagram.com/s_r_prajapat" target="_blank" style="margin: 0 10px;">
-        <img src="https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white" alt="Instagram" height="30">
-    </a>
-    <a href="https://srprajapat.onrender.com" target="_blank" style="margin: 0 10px;">
-        <img src="https://img.shields.io/badge/Portfolio-FF5722?style=for-the-badge&logo=todoist&logoColor=white" alt="Portfolio" height="30">
-    </a>
+    <p><strong>Made by srprajapat with ❤️</strong></p>
+    <p>© 2025 srprajapat. All rights reserved.</p>
+    <div>
+        <a href="https://github.com/Srprajapat/Quiz-Generator" target="_blank" style="margin: 0 15px; color: #333;">
+            <i class="fab fa-github fa-2x"></i>
+        </a>
+        <a href="https://twitter.com/s_r_prajapat" target="_blank" style="margin: 0 15px; color: #1DA1F2;">
+            <i class="fab fa-twitter fa-2x"></i>
+        </a>
+        <a href="https://www.linkedin.com/in/seetaram-prajapat/" target="_blank" style="margin: 0 15px; color: #0077B5;">
+            <i class="fab fa-linkedin fa-2x"></i>
+        </a>
+        <a href="https://instagram.com/s_r_prajapat" target="_blank" style="margin: 0 15px; color: #E4405F;">
+            <i class="fab fa-instagram fa-2x"></i>
+        </a>
+        <a href="https://srprajapat.onrender.com" target="_blank" style="margin: 0 15px; color: #FF5722;">
+            <i class="fas fa-globe fa-2x"></i>
+        </a>
+    </div>
 </div>
 """, unsafe_allow_html=True)
