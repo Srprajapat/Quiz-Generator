@@ -1,45 +1,66 @@
 import streamlit as st
 import json
 import os
-from google import genai
+from groq import Groq
 from dotenv import load_dotenv
 import tempfile
 import time
+import logging
+import PyPDF2
+from docx import Document
 
 # Load environment variables and initialize client
 load_dotenv()
-google_api_key =  st.secrets["GOOGLE_API_KEY"]
+# groq_api_key = os.getenv("GROQ_API_KEY")
+groq_api_key = st.secrets["GROQ_API_KEY"]
 
-# --- FIX 1: Reverted API Initialization to your original working method ---
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# --- Initialize Groq Client ---
 try:
-    if google_api_key:
-        client = genai.Client(api_key=google_api_key)
+    if groq_api_key:
+        client = Groq(api_key=groq_api_key)
+        logging.info("Groq client initialized successfully.")
     else:
-        st.error("Google API key not found. Please set the GOOGLE_API_KEY environment variable.")
+        st.error("Groq API key not found. Please set the GROQ_API_KEY environment variable.")
+        logging.error("Groq API key not found.")
         st.stop()
 except Exception as e:
-    st.error(f"Error initializing Google GenAI client: {e}")
+    st.error(f"Error initializing Groq client: {e}")
+    logging.error(f"Error initializing Groq client: {e}")
     st.stop()
 
 # --- Functions using the 'client' object ---
 def attach_file(uploaded_file):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp_file:
-        temp_file.write(uploaded_file.getbuffer())
-        temp_file_path = temp_file.name
-    
-    st.write(f"Attempting to attach file: {uploaded_file.name}")
+    st.write(f"Processing file: {uploaded_file.name}")
+    logging.info(f"Processing file: {uploaded_file.name}")
     try:
-        # --- FIX 2: Reverted File Upload to your original working method ---
-        uploaded_file_uri = client.files.upload(file=temp_file_path)
-        st.write(f"Uploaded file for attachment (URI: {uploaded_file_uri.uri}): {uploaded_file.name}")
-        return uploaded_file_uri
+        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+        if file_extension == '.pdf':
+            pdf_reader = PyPDF2.PdfReader(uploaded_file)
+            text = ""
+            for page in pdf_reader.pages:
+                text += page.extract_text()
+        elif file_extension == '.docx':
+            doc = Document(uploaded_file)
+            text = "\n".join([para.text for para in doc.paragraphs])
+        elif file_extension == '.txt':
+            text = uploaded_file.read().decode('utf-8')
+        else:
+            st.error("Unsupported file type. Please upload PDF, DOCX, or TXT.")
+            logging.error(f"Unsupported file type: {file_extension}")
+            return None
+        
+        st.write(f"File processed successfully: {uploaded_file.name}")
+        logging.info(f"File processed successfully: {uploaded_file.name}")
+        return text
     except Exception as e:
         st.error(f"Error processing file {uploaded_file.name}: {e}")
+        logging.error(f"Error processing file {uploaded_file.name}: {e}")
         return None
-    finally:
-        os.remove(temp_file_path)
 
-def fetch_questions(uploaded_file_uri, num_questions, difficulty):
+def fetch_questions(file_text, num_questions, difficulty):
     RESPONSE_JSON_SCHEMA = {
         "mcqs": [
             {
@@ -66,40 +87,59 @@ def fetch_questions(uploaded_file_uri, num_questions, difficulty):
     ```json
     {json.dumps(RESPONSE_JSON_SCHEMA, indent=4)}
     ```
+
+    Content:
+    {file_text[:4000]}  # Limit to 4000 chars to fit context
     """
     
-    content_parts = [prompt_template, uploaded_file_uri]
-    
-    try:
-        # --- FIX 3: Reverted Content Generation to your original working method ---
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",  
-            contents=content_parts
-        )
-        if response.text:
-            cleaned_json_string = response.text.strip()
-            if cleaned_json_string.startswith("```json"):
-                cleaned_json_string = cleaned_json_string[7:]
-            if cleaned_json_string.endswith("```"):
-                cleaned_json_string = cleaned_json_string[:-3]
-            
-            cleaned_json_string = cleaned_json_string.strip()
+    logging.info(f"Generating {num_questions} questions with {difficulty} difficulty.")
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[{"role": "user", "content": prompt_template}],
+                max_tokens=2000
+            )
+            if response.choices[0].message.content:
+                cleaned_json_string = response.choices[0].message.content.strip()
+                if cleaned_json_string.startswith("```json"):
+                    cleaned_json_string = cleaned_json_string[7:]
+                if cleaned_json_string.endswith("```"):
+                    cleaned_json_string = cleaned_json_string[:-3]
+                
+                cleaned_json_string = cleaned_json_string.strip()
 
-            try:
-                parsed_response = json.loads(cleaned_json_string).get("mcqs", [])
-                return parsed_response
-            except json.JSONDecodeError as json_err:
-                st.error(f"Error parsing JSON response from the model: {json_err}")
-                st.code(response.text, language='text')
+                try:
+                    parsed_response = json.loads(cleaned_json_string).get("mcqs", [])
+                    logging.info(f"Successfully generated {len(parsed_response)} questions.")
+                    return parsed_response
+                except json.JSONDecodeError as json_err:
+                    st.error(f"Error parsing JSON response from the model: {json_err}")
+                    logging.error(f"JSON parsing error: {json_err}")
+                    st.code(response.choices[0].message.content, language='text')
+                    return None
+            else:
+                st.warning("Model did not generate any text.")
+                logging.warning("Model did not generate any text.")
                 return None
-        else:
-            st.warning("Model did not generate any text.")
-            if response.prompt_feedback:
-                st.write(f"Prompt feedback: {response.prompt_feedback}")
-            return None
-    except Exception as e:
-        st.error(f"An error occurred during content generation: {e}")
-        return None
+        except Exception as e:
+            error_message = str(e).lower()
+            if "rate limit" in error_message or "429" in error_message:
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 5
+                    st.warning(f"Rate limit exceeded. Retrying in {wait_time} seconds... (Attempt {attempt + 1}/{max_retries})")
+                    logging.warning(f"Rate limit exceeded. Retrying in {wait_time} seconds. Error: {e}")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    st.error(f"Rate limit exceeded after {max_retries} attempts. Please try again later.")
+                    logging.error(f"Rate limit exceeded after retries: {e}")
+                    return None
+            else:
+                st.error(f"An error occurred during content generation: {e}")
+                logging.error(f"Content generation error: {e}")
+                return None
 
 # --- Streamlit UI (This part remains the same as the previous correct answer) ---
 st.title("📄 Quiz Generator from a Document")
@@ -122,15 +162,17 @@ with st.sidebar:
 
     if st.button("Generate Quiz"):
         if uploaded_file:
-            with st.spinner("Uploading file and generating questions..."):
-                attached_file_uri = attach_file(uploaded_file)
-                if attached_file_uri:
-                    st.session_state.questions = fetch_questions(attached_file_uri, num_questions, difficulty)
+            with st.spinner("Processing file and generating questions..."):
+                file_text = attach_file(uploaded_file)
+                if file_text:
+                    st.session_state.questions = fetch_questions(file_text, num_questions, difficulty)
                     st.session_state.current_question_index = 0
                     st.session_state.score = 0
+                    logging.info(f"Quiz generated with {len(st.session_state.questions) if st.session_state.questions else 0} questions.")
                     st.rerun()
         else:
             st.error("Please upload a file first.")
+            logging.warning("Quiz generation attempted without uploading a file.")
 
 # Display the quiz if questions are generated
 if st.session_state.questions:
@@ -155,8 +197,10 @@ if st.session_state.questions:
                     if user_answer == correct_answer:
                         st.session_state.score += 1
                         st.success("Correct! 🎉")
+                        logging.info(f"Question {st.session_state.current_question_index + 1}: Correct answer.")
                     else:
                         st.error(f"Incorrect. ❌ The correct answer was: **{correct_answer}**.")
+                        logging.info(f"Question {st.session_state.current_question_index + 1}: Incorrect answer. Correct: {correct_answer}")
                     
                     time.sleep(1.5)
                     st.session_state.current_question_index += 1
@@ -165,11 +209,7 @@ if st.session_state.questions:
         st.header("Quiz Complete! 🥳")
         st.markdown(f"### Your Final Score: **{st.session_state.score} / {len(st.session_state.questions)}**")
         st.balloons()
-        if st.button("Create Another Quiz"):
-            st.session_state.questions = None
-
-            st.rerun()
-
+        logging.info(f"Quiz completed. Final score: {st.session_state.score} / {len(st.session_state.questions)}")
         if st.button("Create Another Quiz"):
             st.session_state.questions = None
 

@@ -1,2 +1,6 @@
+streamlit
 python-dotenv
 google-genai
+groq
+PyPDF2
+python-docx
