@@ -73,11 +73,14 @@ You need a Groq API key to use the Llama model.
 
 1.  Sign up and generate an API key from [Groq Console](https://console.groq.com/).
 2.  For local development, create a file named `secrets.toml` in the root directory (add it to `.gitignore`).
-3.  Add your API key to the `secrets.toml` file as shown below:
-    ```
+3.  Add your API key to the `secrets.toml` file as shown below (create the `.streamlit` directory if necessary):
+    ```toml
     GROQ_API_KEY = "YOUR_API_KEY_HERE"
     ```
-4.  For production (e.g., Streamlit Cloud), add the key in your app's secrets settings instead.
+    *Location choices:*
+    - `./.streamlit/secrets.toml` (project-specific)
+    - `~/.streamlit/secrets.toml` (global)
+4.  For production (e.g., Streamlit Cloud), add the key in your app's Secrets section; the platform will expose it via `st.secrets`.
 
 -----
 

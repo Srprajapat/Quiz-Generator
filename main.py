@@ -11,8 +11,20 @@ from docx import Document
 
 # Load environment variables and initialize client
 load_dotenv()
-# groq_api_key = os.getenv("GROQ_API_KEY")
-groq_api_key = st.secrets["GROQ_API_KEY"]
+# Try Streamlit secrets first, fall back to environment variable
+try:
+    groq_api_key = st.secrets["GROQ_API_KEY"]
+except Exception:
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if groq_api_key:
+        logging.warning("Using GROQ_API_KEY from environment variable (st.secrets not found).")
+    else:
+        logging.warning("No GROQ_API_KEY provided; please set in secrets.toml or environment.")
+
+# ensure we have a key
+if not groq_api_key:
+    st.error("API key missing. Add GROQ_API_KEY to .streamlit/secrets.toml or set environment variable.")
+    st.stop()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -61,90 +73,112 @@ def attach_file(uploaded_file):
         return None
 
 def fetch_questions(file_text, num_questions, difficulty):
+
     RESPONSE_JSON_SCHEMA = {
-        "mcqs": [
-            {
-                "mcq": "multiple choice question",
-                "options": {
-                    "a": "choice 1",
-                    "b": "choice 2",
-                    "c": "choice 3",
-                    "d": "choice 4",
-                },
-                "correct": "The full text of the correct choice",
+        "type": "object",
+        "properties": {
+            "mcqs": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "mcq": {"type": "string"},
+                        "options": {
+                            "type": "object",
+                            "properties": {
+                                "a": {"type": "string"},
+                                "b": {"type": "string"},
+                                "c": {"type": "string"},
+                                "d": {"type": "string"},
+                            },
+                            "required": ["a", "b", "c", "d"]
+                        },
+                        "correct": {"type": "string"}
+                    },
+                    "required": ["mcq", "options", "correct"]
+                }
             }
-        ]
+        },
+        "required": ["mcqs"]
     }
-    prompt_template = f"""
-    You are an expert in generating MCQ quizzes based on provided content.
-    Given the content from the attached file, create a quiz of {num_questions} multiple choice questions.
-    The difficulty of the questions should be {difficulty}.
-    Ensure the questions are not repeated and are directly based on the provided text.
-    Your response MUST be a valid JSON object. Format your response exactly like the JSON schema below.
-    The "correct" field must contain the full text of the correct option, which must also be one of the values in the "options" dictionary.
 
-    JSON Schema:
-    ```json
-    {json.dumps(RESPONSE_JSON_SCHEMA, indent=4)}
-    ```
+    prompt = f"""
+Generate {num_questions} MCQ questions from the content below.
 
-    Content:
-    {file_text[:4000]}  # Limit to 4000 chars to fit context
-    """
-    
-    logging.info(f"Generating {num_questions} questions with {difficulty} difficulty.")
+Difficulty: {difficulty}
+
+Rules:
+- Questions must come directly from the content
+- Do not repeat questions
+- "correct" must contain the FULL text of the correct option
+- Do not include explanations
+
+Content:
+{file_text[:4000]}
+"""
+
+    logging.info(f"Generating {num_questions} questions")
+
     max_retries = 3
+
     for attempt in range(max_retries):
+
         try:
+
             response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "user", "content": prompt_template}],
+                model="openai/gpt-oss-120b",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "mcq_generation",
+                        "schema": RESPONSE_JSON_SCHEMA
+                    }
+                },
                 max_tokens=2000
             )
-            if response.choices[0].message.content:
-                cleaned_json_string = response.choices[0].message.content.strip()
-                if cleaned_json_string.startswith("```json"):
-                    cleaned_json_string = cleaned_json_string[7:]
-                if cleaned_json_string.endswith("```"):
-                    cleaned_json_string = cleaned_json_string[:-3]
-                
-                cleaned_json_string = cleaned_json_string.strip()
 
-                try:
-                    parsed_response = json.loads(cleaned_json_string).get("mcqs", [])
-                    logging.info(f"Successfully generated {len(parsed_response)} questions.")
-                    return parsed_response
-                except json.JSONDecodeError as json_err:
-                    st.error(f"Error parsing JSON response from the model: {json_err}")
-                    logging.error(f"JSON parsing error: {json_err}")
-                    st.code(response.choices[0].message.content, language='text')
-                    return None
+            parsed = json.loads(response.choices[0].message.content)
+
+            questions = parsed["mcqs"]
+
+            # Validate answers
+            valid_questions = []
+            for q in questions:
+                options = list(q["options"].values())
+                if q["correct"] in options:
+                    valid_questions.append(q)
+
+            if len(valid_questions) == len(questions):
+                logging.info("Questions generated successfully")
+                return valid_questions
             else:
-                st.warning("Model did not generate any text.")
-                logging.warning("Model did not generate any text.")
-                return None
+                logging.warning("Invalid answers detected, retrying...")
+                continue
+
         except Exception as e:
+
             error_message = str(e).lower()
+
             if "rate limit" in error_message or "429" in error_message:
+
                 if attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) * 5
-                    st.warning(f"Rate limit exceeded. Retrying in {wait_time} seconds... (Attempt {attempt + 1}/{max_retries})")
-                    logging.warning(f"Rate limit exceeded. Retrying in {wait_time} seconds. Error: {e}")
-                    time.sleep(wait_time)
+                    wait = (2 ** attempt) * 5
+                    st.warning(f"Rate limit hit. Retrying in {wait}s")
+                    time.sleep(wait)
                     continue
                 else:
-                    st.error(f"Rate limit exceeded after {max_retries} attempts. Please try again later.")
-                    logging.error(f"Rate limit exceeded after retries: {e}")
+                    st.error("Rate limit exceeded.")
                     return None
-            else:
-                st.error(f"An error occurred during content generation: {e}")
-                logging.error(f"Content generation error: {e}")
-                return None
+
+            logging.error(e)
+            st.error(f"Generation failed: {e}")
+            return None
 
 # --- Streamlit UI (This part remains the same as the previous correct answer) ---
 st.title("📄 Quiz Generator from a Document")
 st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">', unsafe_allow_html=True)
-st.write("Upload a document (PDF, DOCX, TXT) and I'll generate a quiz for you.")
+st.write("Upload a document (PDF, DOCX, TXT) or enter text/topics below and I'll generate a quiz for you.")
 
 # Initialize session state variables
 if 'questions' not in st.session_state:
@@ -156,11 +190,13 @@ if 'score' not in st.session_state:
 
 with st.sidebar:
     st.header("Quiz Settings")
-    num_questions = st.number_input("Number of questions:", min_value=1, max_value=10, value=3, step=1)
+    num_questions = st.number_input("Number of questions:", min_value=1, max_value=100, value=3, step=1)
     difficulty = st.radio("Difficulty Level:", ("Easy", "Medium", "Hard"))
     uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "txt"])
+    user_text = st.text_area("Or enter text/topics manually (ignored if file provided):", height=100)
 
     if st.button("Generate Quiz"):
+        # prioritize file if present, otherwise use manual text
         if uploaded_file:
             with st.spinner("Processing file and generating questions..."):
                 file_text = attach_file(uploaded_file)
@@ -170,9 +206,16 @@ with st.sidebar:
                     st.session_state.score = 0
                     logging.info(f"Quiz generated with {len(st.session_state.questions) if st.session_state.questions else 0} questions.")
                     st.rerun()
+        elif user_text and user_text.strip():
+            with st.spinner("Generating questions from provided text..."):
+                st.session_state.questions = fetch_questions(user_text, num_questions, difficulty)
+                st.session_state.current_question_index = 0
+                st.session_state.score = 0
+                logging.info(f"Quiz generated from text with {len(st.session_state.questions) if st.session_state.questions else 0} questions.")
+                st.rerun()
         else:
-            st.error("Please upload a file first.")
-            logging.warning("Quiz generation attempted without uploading a file.")
+            st.error("Please upload a file or enter some text first.")
+            logging.warning("Quiz generation attempted without file or text.")
 
 # Display the quiz if questions are generated
 if st.session_state.questions:
